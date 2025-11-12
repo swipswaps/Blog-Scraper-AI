@@ -1,5 +1,11 @@
+
 import { BlogPost, ProgressUpdate } from '../types';
 import { fetchWithProxy } from './proxyService';
+
+interface PostInfo {
+    title: string;
+    url: string;
+}
 
 interface ScrapeOptions {
     limit?: number;
@@ -9,22 +15,66 @@ interface ScrapeOptions {
 }
 
 /**
- * Strips HTML tags from a string to return plain text.
- * @param html The HTML string to clean.
- * @returns The plain text content.
+ * Extracts the main article content from a full HTML page string.
+ * It intelligently finds the main content container, removes clutter,
+ * and converts the result to formatted plain text.
+ * @param html The full HTML string of a blog post page.
+ * @returns The cleaned, readable plain text of the article.
  */
-function stripHtml(html: string): string {
-    // Use the browser's DOMParser to safely convert HTML to text
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    return doc.body.textContent || "";
+function extractArticleContent(html: string): string {
+    if (!html) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // 1. Remove elements that are almost always not part of the main content.
+    // This is now more aggressive and specific to the target site's structure.
+    doc.querySelectorAll(
+      'script, style, link, meta, noscript, header, footer, nav, aside, ' +
+      '.widget-header, .widget-footer, .widget-social, .widget-contact, ' + // Specific to GoDaddy builder
+      '.comments, #comments, .sidebar, #sidebar, .social-links, ' +
+      '.post-meta, form, .related-posts, #related-posts, [data-aid="FOOTER_POWERED_BY_AIRO_RENDERED"]'
+    ).forEach(el => el.remove());
+
+
+    // 2. Find the most likely container for the main article content.
+    // Added '.widget-content' as a high-priority selector.
+    const selectors = ['.widget-content', 'article', '.post-body', '.post-content', '#main-content', '[role="article"]', '#content', 'main', '.entry-content'];
+    let mainContent: HTMLElement | null = null;
+    for (const selector of selectors) {
+        mainContent = doc.querySelector(selector);
+        if (mainContent) break;
+    }
+
+    const container = mainContent || doc.body;
+
+    // 3. To preserve formatting, append markers to block-level elements before getting text content.
+    container.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr').forEach(el => {
+        el.append('__P__'); // Paragraph break marker
+    });
+    container.querySelectorAll('br, hr').forEach(el => {
+        el.replaceWith(document.createTextNode('__P__'));
+    });
+
+    // 4. Get the text content, which now includes our markers.
+    let text = container.textContent || '';
+
+    // 5. Replace markers with newlines and clean up whitespace for final output.
+    // Also includes a failsafe to remove any lingering boilerplate text.
+    return text
+        .replace(/Welcome to\s+John's Solar Blog!/g, '') // Failsafe removal
+        .replace(/__P__/g, '\n')      // Replace markers with newlines
+        .replace(/[ \t]+/g, ' ')       // Collapse consecutive spaces and tabs
+        .replace(/ \n/g, '\n')         // Remove spaces before newlines
+        .replace(/\n /g, '\n')         // Remove spaces after newlines
+        .replace(/(\n){3,}/g, '\n\n')  // Collapse 3+ newlines into two
+        .trim();
 }
 
+
 /**
- * Parses a JSON feed string and extracts blog posts.
- * Assumes the GoDaddy/JSONFeed structure.
+ * Parses a JSON feed string and extracts post titles and URLs.
  */
-// FIX: The function was incorrectly typed to return Omit<BlogPost, 'content'>[] but it returns a full BlogPost object with HTML content. Corrected to BlogPost[].
-function parseJsonFeed(jsonString: string): BlogPost[] {
+function parseJsonFeed(jsonString: string): PostInfo[] {
     try {
         const feed = JSON.parse(jsonString);
         if (!feed.items || !Array.isArray(feed.items)) {
@@ -32,9 +82,8 @@ function parseJsonFeed(jsonString: string): BlogPost[] {
         }
         return feed.items.map((item: any) => ({
             title: item.title || 'Untitled',
-            // The content is expected to be HTML
-            content: item.content_html || item.summary || ''
-        }));
+            url: item.url || item.id || ''
+        })).filter(post => post.url); // Ensure we have a URL to fetch
     } catch (e) {
         console.error("Failed to parse JSON feed:", e);
         return [];
@@ -42,10 +91,9 @@ function parseJsonFeed(jsonString: string): BlogPost[] {
 }
 
 /**
- * Parses an RSS/Atom (XML) feed string and extracts blog posts.
+ * Parses an RSS/Atom (XML) feed string and extracts post titles and URLs.
  */
-// FIX: The function was incorrectly typed to return Omit<BlogPost, 'content'>[] but it returns a full BlogPost object with HTML content. Corrected to BlogPost[].
-function parseXmlFeed(xmlString: string): BlogPost[] {
+function parseXmlFeed(xmlString: string): PostInfo[] {
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(xmlString, "application/xml");
@@ -58,10 +106,10 @@ function parseXmlFeed(xmlString: string): BlogPost[] {
         const items = Array.from(doc.querySelectorAll("item, entry"));
         return items.map(item => {
             const title = item.querySelector("title")?.textContent || 'Untitled';
-            // Look for full content first, then fall back to summary/description
-            const content = item.querySelector("content, content\\:encoded, description")?.textContent || '';
-            return { title, content };
-        });
+            const linkEl = item.querySelector("link");
+            const url = linkEl?.getAttribute('href') || linkEl?.textContent || '';
+            return { title, url };
+        }).filter(post => post.url); // Ensure we have a URL to fetch
 
     } catch (e) {
         console.error("Failed to parse XML feed:", e);
@@ -70,8 +118,9 @@ function parseXmlFeed(xmlString: string): BlogPost[] {
 }
 
 /**
- * Scrapes all blog posts from a given URL by finding and parsing its JSON or RSS feed.
- * This is a "fast path" that avoids AI and direct HTML scraping.
+ * Scrapes all blog posts from a given URL using a two-phase, code-based approach.
+ * Phase 1: Discover post URLs from feeds.
+ * Phase 2: Fetch each post page and extract its full content.
  *
  * @param baseUrl The URL of the blog to scrape.
  * @param options Callbacks for progress, completion, and errors, plus an optional post limit.
@@ -80,52 +129,66 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
     const { onProgress, onComplete, onError, limit } = options;
 
     try {
-        // FIX: The posts array should be of type BlogPost[] to match the return type of the parsing functions.
-        let posts: BlogPost[] = [];
+        let postInfos: PostInfo[] = [];
         let feedType = '';
 
-        // 1. Try to fetch the JSON feed (f.json) - this is common for GoDaddy blogs
+        // Phase 1: Link Discovery
+        // Try to fetch the JSON feed first.
         try {
             onProgress({ type: 'status', message: 'Attempting to find JSON feed (f.json)...' });
             const jsonFeedUrl = new URL('f.json', baseUrl).href;
             const jsonString = await fetchWithProxy(jsonFeedUrl);
-            posts = parseJsonFeed(jsonString);
-            if (posts.length > 0) {
+            postInfos = parseJsonFeed(jsonString);
+            if (postInfos.length > 0) {
                 feedType = 'JSON';
             }
         } catch (e) {
-            console.warn("JSON feed (f.json) not found or failed to parse. Trying RSS next.", e);
+            console.warn("JSON feed (f.json) not found or failed. Trying RSS next.", e);
         }
 
-        // 2. If JSON feed fails or is empty, try the RSS feed (f.rss)
-        if (posts.length === 0) {
+        // If JSON fails or is empty, try the RSS feed.
+        if (postInfos.length === 0) {
             try {
                 onProgress({ type: 'status', message: 'JSON feed not found. Trying RSS feed (f.rss)...' });
                 const rssFeedUrl = new URL('f.rss', baseUrl).href;
                 const xmlString = await fetchWithProxy(rssFeedUrl);
-                posts = parseXmlFeed(xmlString);
-                if (posts.length > 0) {
+                postInfos = parseXmlFeed(xmlString);
+                if (postInfos.length > 0) {
                     feedType = 'RSS';
                 }
             } catch (e) {
-                 console.warn("RSS feed (f.rss) also not found or failed to parse.", e);
+                 console.warn("RSS feed (f.rss) also not found or failed.", e);
             }
         }
 
-        if (posts.length === 0) {
-            onProgress({ type: 'status', message: 'No compatible JSON or RSS feed found. This site may not be supported by the direct scraper.' });
+        if (postInfos.length === 0) {
+            onProgress({ type: 'status', message: 'No compatible JSON or RSS feed found. This site may not be supported.' });
             onComplete();
             return;
         }
 
-        onProgress({ type: 'status', message: `Successfully parsed ${feedType} feed. Found ${posts.length} posts.` });
+        onProgress({ type: 'status', message: `Successfully parsed ${feedType} feed. Found ${postInfos.length} posts.` });
 
-        const postsToProcess = limit ? posts.slice(0, limit) : posts;
+        const postsToProcess = limit ? postInfos.slice(0, limit) : postInfos;
         
-        for (const post of postsToProcess) {
-            const cleanContent = stripHtml(post.content);
-            const finalPost: BlogPost = { title: post.title, content: cleanContent };
-            onProgress({ type: 'post', data: finalPost });
+        // Phase 2: Full Content Extraction
+        for (const postInfo of postsToProcess) {
+             if (!postInfo.url) {
+                console.warn(`Skipping post with no URL: "${postInfo.title}"`);
+                continue;
+            }
+            try {
+                onProgress({ type: 'status', message: `Fetching content for: "${postInfo.title}"...` });
+                const postHtml = await fetchWithProxy(postInfo.url);
+                
+                const cleanContent = extractArticleContent(postHtml);
+                
+                const finalPost: BlogPost = { title: postInfo.title, content: cleanContent };
+                onProgress({ type: 'post', data: finalPost });
+            } catch(e) {
+                console.error(`Failed to process post: "${postInfo.title}" (${postInfo.url})`, e);
+                onProgress({ type: 'status', message: `Skipping post due to error: "${postInfo.title}"` });
+            }
         }
         
         onComplete();

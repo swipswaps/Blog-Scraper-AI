@@ -49,9 +49,9 @@ const App: React.FC = () => {
                 if (update.type === 'status') {
                     setProgressMessage(update.message);
                 } else if (update.type === 'post') {
-                    // Show verbatim title as progress
-                    setProgressMessage(`✓ ${update.data.title}`);
                     setPosts(prevPosts => [...prevPosts, update.data]);
+                    // Update the status AFTER the post has been processed and added
+                    setProgressMessage(`✓ ${update.data.title}`);
                 }
             },
             onComplete: () => {
