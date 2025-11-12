@@ -200,30 +200,23 @@ ${htmlContent.substring(0, htmlContent.indexOf('</head>') + 7)}
 
 
 /**
- * Uses Gemini to parse feed content (RSS, Atom, JSON) and extract all blog posts.
+ * Uses Gemini to parse feed content (RSS, Atom, JSON) and extract post URLs.
  */
-async function extractPostsFromFeed(feedContent: string): Promise<BlogPost[]> {
+async function extractPostUrlsFromFeed(feedContent: string, baseUrl: string): Promise<string[]> {
     const prompt = `
-You are an expert feed parser. Your task is to analyze the provided feed content (which could be RSS, Atom, or JSON Feed format) and extract all blog posts from it.
+You are an expert feed parser. Analyze the provided feed content (which could be RSS, Atom, or JSON Feed format) and extract the permanent URL for each post.
 
 Instructions:
 1.  Identify the format of the feed (it could be XML for RSS/Atom or JSON).
-2.  For each item or entry in the feed, extract its title and its primary content/summary.
-3.  Clean the content: Remove all HTML tags but ensure you preserve paragraph breaks (newlines) to maintain readability.
-4.  Return the data as a single, valid JSON array of objects. Do not include any other text, explanations, or code formatting like \`\`\`json.
+2.  For each item or entry in the feed, extract its primary link/URL (e.g., from a <link href="..."> tag, <guid> tag, or a "url"/"link" JSON property).
+3.  Return the data as a single, valid JSON array of absolute URLs.
 
-JSON Output Structure:
-[
-  {
-    "title": "<Post Title>",
-    "content": "<Cleaned Post Content>"
-  },
-  ...
-]
+Base URL for resolving relative URLs: ${baseUrl}
 
 Important Rules:
-- If the feed is empty or contains no valid posts, you MUST return an empty array \`[]\`.
-- Ensure the title and content are properly extracted and cleaned.
+- All URLs in the output MUST be absolute. Use the Base URL to resolve any relative paths.
+- If the feed is empty or contains no valid post links, you MUST return an empty array \`[]\`.
+- Do not include any other text, explanations, or code formatting like \`\`\`json.
 
 Here is the feed content to analyze:
 `;
@@ -235,14 +228,8 @@ Here is the feed content to analyze:
             responseMimeType: "application/json",
             responseSchema: {
                 type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        title: { type: Type.STRING, description: "The title of the post." },
-                        content: { type: Type.STRING, description: "The cleaned content of the post." }
-                    },
-                    required: ["title", "content"]
-                }
+                description: "An array of absolute URLs for individual blog posts found in the feed.",
+                items: { type: Type.STRING }
             }
         }
     });
@@ -250,16 +237,51 @@ Here is the feed content to analyze:
     try {
         const jsonText = response.text.trim();
         if (!jsonText) return [];
-        return JSON.parse(jsonText) as BlogPost[];
+        const urls = JSON.parse(jsonText);
+        if (Array.isArray(urls)) {
+             return urls
+                .map((url: string) => { try { return new URL(url, baseUrl).href; } catch { return null; }})
+                .filter((url: string | null): url is string => url !== null && !url.includes('google.com/reader')); // Filter out old reader links
+        }
+        return [];
     } catch (e) {
-        console.error("Failed to parse blog posts from feed content.", e);
+        console.error("Failed to parse post URLs from feed content.", e);
         return [];
     }
 }
 
 /**
- * Scrapes by paginating through a blog and extracting post URLs from each page,
- * then scrapes each post individually. This is the fallback method.
+ * Processes a list of post URLs, scraping each one for full content.
+ */
+async function processUrlList(urlsToProcess: string[], options: ScrapeOptions): Promise<void> {
+    const { limit, onProgress } = options;
+    onProgress({ type: 'status', message: `Found ${urlsToProcess.length} total posts. Starting content extraction...` });
+
+    const uniqueUrls = Array.from(new Set(urlsToProcess));
+
+    for (let i = 0; i < uniqueUrls.length; i++) {
+        const postUrl = uniqueUrls[i];
+        if (limit && i >= limit) {
+            onProgress({ type: 'status', message: `Reached scrape limit of ${limit} posts.` });
+            break;
+        }
+        onProgress({ type: 'status', message: `Fetching post ${i + 1} of ${uniqueUrls.length}...`});
+        const postHtml = await fetchWithProxy(postUrl);
+
+        onProgress({ type: 'status', message: `Extracting content for post ${i + 1}...`});
+        try {
+            const post = await extractContentFromHtml(postHtml);
+            onProgress({ type: 'post', data: post });
+        } catch(e: any) {
+            console.warn(`Skipping post due to extraction error: ${postUrl}`, e.message);
+            onProgress({ type: 'status', message: `Warning: Could not extract content from a post, skipping.` });
+        }
+    }
+}
+
+
+/**
+ * Scrapes by paginating through a blog to discover post URLs, then processes them.
  */
 async function scrapeHtmlDirectly(initialHtml: string, url: string, options: ScrapeOptions): Promise<void> {
     const { limit, onProgress } = options;
@@ -282,96 +304,78 @@ async function scrapeHtmlDirectly(initialHtml: string, url: string, options: Scr
         const { postUrls, nextPageUrl } = await getLinksAndNextPage(currentHtml, currentPageUrl);
 
         if (postUrls.length === 0 && pageCount === 1 && !nextPageUrl) {
-             break; // No posts found on single-page blog
+             break; 
         }
 
-        for (const postUrl of postUrls) {
-             if (!limit || allPostUrls.size < limit) {
-                allPostUrls.add(postUrl);
-             } else {
-                break;
-             }
-        }
+        postUrls.forEach(postUrl => allPostUrls.add(postUrl));
         
-        currentPageUrl = nextPageUrl;
+        if (limit && allPostUrls.size >= limit) {
+             currentPageUrl = null;
+        } else {
+             currentPageUrl = nextPageUrl;
+        }
         pageCount++;
     }
+    
+    const urlsToProcess = Array.from(allPostUrls).slice(0, limit);
 
-    if (allPostUrls.size === 0) {
+    if (urlsToProcess.length === 0) {
         onProgress({ type: 'status', message: 'No blog post links found. The URL might not be a blog index page or the structure is not recognized.' });
         return;
     }
-
-    onProgress({ type: 'status', message: `Found ${allPostUrls.size} total posts. Starting content extraction...` });
-
-    const urlsToProcess = Array.from(allPostUrls);
-    for (let i = 0; i < urlsToProcess.length; i++) {
-        const postUrl = urlsToProcess[i];
-         if (limit && i >= limit) {
-            onProgress({ type: 'status', message: `Reached scrape limit of ${limit} posts.` });
-            break;
-        }
-        onProgress({ type: 'status', message: `Fetching post ${i + 1} of ${urlsToProcess.length}...`});
-        const postHtml = await fetchWithProxy(postUrl);
-
-        onProgress({ type: 'status', message: `Extracting content for post ${i + 1}...`});
-        try {
-            const post = await extractContentFromHtml(postHtml);
-            onProgress({ type: 'post', data: post });
-        } catch(e: any) {
-            console.warn(`Skipping post due to extraction error: ${postUrl}`, e.message);
-            onProgress({ type: 'status', message: `Warning: Could not extract content from a post, skipping.` });
-        }
-    }
+    
+    await processUrlList(urlsToProcess, options);
 }
 
 
 /**
  * Main orchestrator for scraping blog posts.
- * It first attempts to find and parse a syndication feed (RSS, Atom, JSON).
- * If that fails or yields no content, it falls back to direct HTML scraping.
+ * Phase 1: Discover all post URLs, prioritizing feeds.
+ * Phase 2: Scrape each URL for its full content.
  */
 export async function scrapeBlogPosts(url: string, options: ScrapeOptions): Promise<void> {
     const { onProgress, onComplete, onError } = options;
 
     try {
-        // --- STRATEGY 1: FIND AND PARSE FEEDS (MORE RELIABLE FOR DYNAMIC SITES) ---
-        onProgress({ type: 'status', message: 'Fetching main page to check for feeds...' });
+        onProgress({ type: 'status', message: 'Fetching main page...' });
         const initialHtml = await fetchWithProxy(url);
+        
+        let discoveredPostUrls: string[] = [];
+
+        // --- STRATEGY 1: FIND LINKS FROM FEEDS ---
+        onProgress({ type: 'status', message: 'Checking for syndication feeds (RSS/Atom)...' });
         const feedUrls = await findFeedUrls(initialHtml, url);
 
         if (feedUrls.length > 0) {
-            onProgress({ type: 'status', message: `Found ${feedUrls.length} feed(s). Attempting to parse...` });
+            onProgress({ type: 'status', message: `Found ${feedUrls.length} feed(s). Parsing for post links...` });
             for (const feedUrl of feedUrls) {
                 try {
                     const feedContent = await fetchWithProxy(feedUrl);
-                    const postsFromFeed = await extractPostsFromFeed(feedContent);
+                    const urlsFromFeed = await extractPostUrlsFromFeed(feedContent, feedUrl); 
                     
-                    if (postsFromFeed.length > 0) {
-                        onProgress({ type: 'status', message: `Successfully extracted ${postsFromFeed.length} posts from feed.` });
-                        let postsAdded = 0;
-                        for (const post of postsFromFeed) {
-                            if (options.limit && postsAdded >= options.limit) {
-                                onProgress({ type: 'status', message: `Reached scrape limit of ${options.limit} posts.` });
-                                break;
-                            }
-                            options.onProgress({ type: 'post', data: post });
-                            postsAdded++;
-                        }
-                        onComplete();
-                        return; // Success! We are done.
+                    if (urlsFromFeed.length > 0) {
+                        discoveredPostUrls = [...discoveredPostUrls, ...urlsFromFeed];
                     }
                 } catch (e) {
                     console.warn(`Failed to process feed ${feedUrl}:`, e);
                 }
             }
-            onProgress({ type: 'status', message: 'Found feeds, but they were empty or failed. Falling back to direct HTML scraping.' });
-        } else {
-             onProgress({ type: 'status', message: 'No feeds found. Attempting direct HTML scraping.' });
         }
         
-        // --- STRATEGY 2: FALLBACK TO DIRECT HTML SCRAPING ---
-        await scrapeHtmlDirectly(initialHtml, url, options);
+        let finalUrls = Array.from(new Set(discoveredPostUrls));
+        if (options.limit) {
+            finalUrls = finalUrls.slice(0, options.limit);
+        }
+        
+        if (finalUrls.length > 0) {
+            onProgress({ type: 'status', message: `Found ${finalUrls.length} post links in feed(s). Proceeding to scrape content.` });
+            await processUrlList(finalUrls, options);
+        } else {
+            // --- STRATEGY 2: IF FEEDS FAIL, SCRAPE HTML FOR LINKS ---
+            onProgress({ type: 'status', message: 'No usable links in feeds. Falling back to direct HTML scraping.' });
+            await scrapeHtmlDirectly(initialHtml, url, options);
+        }
+        
         onComplete();
     } catch (error) {
         console.error("Error scraping blog posts:", error);
