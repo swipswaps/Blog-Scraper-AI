@@ -30,7 +30,6 @@ const PostItem: React.FC<{ post: BlogPost; isOpen: boolean; onClick: () => void 
       </button>
       <div
         className={`overflow-hidden transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
-        hidden={!isOpen}
       >
         <div className="p-4 bg-primary/40 whitespace-pre-wrap text-text-secondary leading-relaxed">
           {post.content}

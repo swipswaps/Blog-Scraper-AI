@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { BlogPost, ProgressUpdate } from './types';
 import { scrapeBlogPosts } from './services/geminiService';
-import Loader from './components/Loader';
 import PostList from './components/PostList';
+import StatusDisplay from './components/StatusDisplay';
 
 const ScrapeIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -48,13 +48,19 @@ const App: React.FC = () => {
                 if (update.type === 'status') {
                     setProgressMessage(update.message);
                 } else if (update.type === 'post') {
+                    // Show verbatim title as progress
+                    setProgressMessage(`✓ ${update.data.title}`);
                     setPosts(prevPosts => [...prevPosts, update.data]);
-                    setProgressMessage(`Extracted: ${update.data.title}`);
                 }
             },
             onComplete: () => {
                 setIsLoading(false);
-                setProgressMessage(null);
+                // Keep the last status message if no posts were found
+                 if (posts.length === 0) {
+                   setProgressMessage(prev => prev || "Scraping complete. No posts found.");
+                } else {
+                   setProgressMessage(null);
+                }
             },
             onError: (err: Error) => {
                 setError(err.message);
@@ -189,19 +195,13 @@ const App: React.FC = () => {
                     </form>
                 </div>
                 
-                {isLoading && (
-                    <div className="w-full text-center p-4">
-                        <Loader />
-                        {progressMessage && <p className="text-text-secondary mt-2 animate-pulse">{progressMessage}</p>}
-                    </div>
-                )}
-                
-                {error && (
-                    <div className="w-full p-4 mb-4 text-sm text-red-300 bg-red-900/50 rounded-lg" role="alert">
-                        <span className="font-medium">Error:</span> {error}
-                    </div>
-                )}
-                
+                <StatusDisplay
+                    isLoading={isLoading}
+                    progressMessage={progressMessage}
+                    error={error}
+                    postsFound={posts.length}
+                />
+
                 {posts.length > 0 && !isLoading && (
                     <div className="w-full flex flex-col items-center gap-6 animate-fade-in">
                         <div className="w-full flex flex-col md:flex-row justify-between items-center gap-4 px-2">
