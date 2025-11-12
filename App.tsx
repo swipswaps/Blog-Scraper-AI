@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { BlogPost, ProgressUpdate } from './types';
+// FIX: Corrected import path for scrapeBlogPosts from 'scrapingService' to 'geminiService'.
 import { scrapeBlogPosts } from './services/geminiService';
 import PostList from './components/PostList';
 import StatusDisplay from './components/StatusDisplay';
