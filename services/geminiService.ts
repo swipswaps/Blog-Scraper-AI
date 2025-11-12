@@ -20,6 +20,36 @@ interface ScrapeOptions {
 }
 
 /**
+ * A generic helper to call the Gemini API and parse a JSON response based on a schema.
+ * This centralizes the API call logic, error handling, and JSON parsing.
+ * @param prompt The full prompt to send to the model.
+ * @param schema The response schema for the JSON output.
+ * @returns A promise that resolves with the parsed JSON object of type T.
+ */
+async function callGeminiForJson<T>(prompt: string, schema: any): Promise<T> {
+    try {
+        const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+            }
+        });
+
+        const jsonText = response.text.trim();
+        if (!jsonText) {
+            throw new Error("Gemini returned an empty response.");
+        }
+        return JSON.parse(jsonText) as T;
+    } catch (e: any) {
+        console.error("Error in callGeminiForJson:", e);
+        const detail = e.message || "Unknown error";
+        throw new Error(`AI model call failed or returned invalid JSON. Detail: ${detail}`);
+    }
+}
+
+/**
  * Uses Gemini AI to analyze an HTML string and extract blog post links and the next page link.
  */
 async function getLinksAndNextPage(htmlContent: string, baseUrl: string): Promise<{ postUrls: string[]; nextPageUrl: string | null; }> {
@@ -47,37 +77,25 @@ Important Rules:
 
 Here is the HTML content to analyze:
 `;
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            postUrls: {
+                type: Type.ARRAY,
+                description: "An array of absolute URLs for individual blog posts.",
+                items: { type: Type.STRING }
+            },
+            nextPageUrl: {
+                type: Type.STRING,
+                description: "The absolute URL for the next page of posts. Should be null if not found.",
+            }
+        },
+        required: ["postUrls"]
+    };
 
     try {
-        const response = await ai.models.generateContent({
-            model,
-            contents: `${prompt}\n\n${htmlContent}`,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        postUrls: {
-                            type: Type.ARRAY,
-                            description: "An array of absolute URLs for individual blog posts.",
-                            items: { type: Type.STRING }
-                        },
-                        nextPageUrl: {
-                            type: Type.STRING,
-                            description: "The absolute URL for the next page of posts. Should be null if not found.",
-                        }
-                    },
-                    required: ["postUrls"]
-                }
-            }
-        });
+        const result = await callGeminiForJson<{ postUrls: string[]; nextPageUrl?: string | null }>(`${prompt}\n\n${htmlContent}`, schema);
         
-        const jsonText = response.text.trim();
-        if (!jsonText) {
-            throw new Error("Gemini returned an empty response for link extraction.");
-        }
-        const result = JSON.parse(jsonText);
-
         const postUrls = (result.postUrls || [])
             .map((url: string) => { try { return new URL(url, baseUrl).href; } catch { return null; }})
             .filter((url: string | null): url is string => url !== null);
@@ -90,7 +108,7 @@ Here is the HTML content to analyze:
         return { postUrls: Array.from(new Set(postUrls)), nextPageUrl };
 
     } catch (e: any) {
-        console.error("Error during AI link extraction:", e);
+        console.error("Error processing AI response for link extraction:", e);
         throw new Error(`AI model failed to analyze the blog structure. Details: ${e.message}`);
     }
 }
@@ -117,37 +135,26 @@ JSON Output Structure:
 
 Here is the HTML of the blog post to analyze:
 `;
-
-    const response = await ai.models.generateContent({
-        model,
-        contents: `${prompt}\n\n${htmlContent}`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING, description: "The main title of the blog post." },
-                    content: { type: Type.STRING, description: "The full, cleaned text content of the post." }
-                },
-                required: ["title", "content"]
-            }
-        }
-    });
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING, description: "The main title of the blog post." },
+            content: { type: Type.STRING, description: "The full, cleaned text content of the post." }
+        },
+        required: ["title", "content"]
+    };
 
     try {
-        const jsonText = response.text.trim();
-        if (!jsonText) throw new Error("Gemini returned an empty response for content extraction.");
-        const potentialPost = JSON.parse(jsonText);
-
+        const potentialPost = await callGeminiForJson<BlogPost>(`${prompt}\n\n${htmlContent}`, schema);
         if (typeof potentialPost.title !== 'string' || !potentialPost.title.trim()) {
-            throw new Error(`Gemini response is missing a valid 'title'.`);
+            throw new Error(`AI response is missing a valid 'title'.`);
         }
         if (typeof potentialPost.content !== 'string') {
-            throw new Error(`Gemini response is missing 'content'.`);
+            throw new Error(`AI response is missing 'content'.`);
         }
-        return potentialPost as BlogPost;
-    } catch (e: any) {
-        throw new Error(`Failed to parse valid blog post from Gemini response. Error: ${e.message}`);
+        return potentialPost;
+    } catch(e: any) {
+        throw new Error(`Failed to extract valid blog post from AI response. Error: ${e.message}`);
     }
 }
 
@@ -169,33 +176,23 @@ Example Output:
 HTML <head> content to analyze:
 ${htmlContent.substring(0, htmlContent.indexOf('</head>') + 7)}
 `;
+    const schema = {
+        type: Type.ARRAY,
+        items: { type: Type.STRING }
+    };
 
     try {
-        const response = await ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                 responseSchema: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
-                }
-            }
-        });
-
-        const jsonText = response.text.trim();
-        if (!jsonText) return [];
-        
-        const urls = JSON.parse(jsonText);
+        const urls = await callGeminiForJson<string[]>(prompt, schema);
         if (Array.isArray(urls)) {
             return urls
                 .map((url: string) => { try { return new URL(url, baseUrl).href; } catch { return null; }})
                 .filter((url: string | null): url is string => url !== null);
         }
+        return [];
     } catch (e) {
-        console.warn("Could not parse feed URLs from AI response.", e);
+        console.warn("Could not find or parse feed URLs from AI response.", e);
+        return [];
     }
-    return [];
 }
 
 
@@ -220,28 +217,18 @@ Important Rules:
 
 Here is the feed content to analyze:
 `;
-
-    const response = await ai.models.generateContent({
-        model,
-        contents: `${prompt}\n\n${feedContent}`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.ARRAY,
-                description: "An array of absolute URLs for individual blog posts found in the feed.",
-                items: { type: Type.STRING }
-            }
-        }
-    });
+    const schema = {
+        type: Type.ARRAY,
+        description: "An array of absolute URLs for individual blog posts found in the feed.",
+        items: { type: Type.STRING }
+    };
 
     try {
-        const jsonText = response.text.trim();
-        if (!jsonText) return [];
-        const urls = JSON.parse(jsonText);
+        const urls = await callGeminiForJson<string[]>(`${prompt}\n\n${feedContent}`, schema);
         if (Array.isArray(urls)) {
              return urls
                 .map((url: string) => { try { return new URL(url, baseUrl).href; } catch { return null; }})
-                .filter((url: string | null): url is string => url !== null && !url.includes('google.com/reader')); // Filter out old reader links
+                .filter((url: string | null): url is string => url !== null && !url.includes('google.com/reader'));
         }
         return [];
     } catch (e) {

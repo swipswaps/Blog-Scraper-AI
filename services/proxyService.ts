@@ -5,10 +5,16 @@
  */
 
 // List of public CORS proxies. They are functions to allow for different URL structures.
+// More proxies are added for better resilience. They are ordered by perceived reliability.
 const CORS_PROXIES = [
+    // URL is just appended
+    (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
+    // URL is just appended
+    (url: string) => `https://cors.eu.org/${url}`,
+    // URL is a query param, so it needs encoding
     (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    // URL is a query param, so it needs encoding
     (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-    // Add more proxies here if needed in the future
 ];
 
 /**
