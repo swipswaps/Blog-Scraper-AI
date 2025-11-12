@@ -18,64 +18,65 @@ interface ScrapeOptions {
 }
 
 /**
- * Fetches the raw HTML content of a URL.
- * NOTE: This can be blocked by CORS policy on some websites. A backend proxy is the
- * standard solution in a production environment.
+ * Fetches the raw HTML content of a URL via a CORS proxy to avoid browser security restrictions.
  */
 async function fetchHtmlContent(url: string): Promise<string> {
+    // Use a CORS proxy to bypass browser security restrictions for fetching cross-origin content.
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
     try {
-        const response = await fetch(url);
+        const response = await fetch(proxyUrl);
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Try to fetch original error message from proxy if available
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}. Proxy response: ${errorText}`);
         }
         return await response.text();
     } catch (e: any) {
-        throw new Error(`Failed to fetch HTML from ${url}. This might be a CORS issue or network problem. Error: ${e.message}`);
+        throw new Error(`Failed to fetch HTML via proxy for ${url}. This could be a network issue or the proxy service might be down. Error: ${e.message}`);
     }
 }
 
-// Helper function to extract links from an index page's HTML content
-async function getLinksAndNextPage(htmlContent: string): Promise<{ postUrls: string[]; nextPageUrl: string | null; }> {
-    const prompt = `From the provided HTML content, extract all URLs that lead to individual blog posts and the URL for the link to the next page of posts (often labeled "Older Posts" or "Next").
-Return a single JSON object with two keys: "postUrls" and "nextPageUrl".
-- "postUrls": An array of strings, where each string is a URL to a blog post. It can be relative (e.g., "/2024/01/post.html") or absolute.
-- "nextPageUrl": A string containing the URL to the next page of posts. If there is no next page link, this value must be null.`;
+
+/**
+ * Uses the browser's native DOM parser to quickly and reliably extract links from an HTML string.
+ */
+function getLinksAndNextPage(htmlContent: string): { postUrls: string[]; nextPageUrl: string | null; } {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+    const postUrls = new Set<string>();
+    let nextPageUrl: string | null = null;
+
+    // Use a set of common selectors to find post links across different blog platforms.
+    const postLinkSelectors = [
+        'article h2 a',
+        'article h3 a',
+        '.post-title a',
+        '.entry-title a',
+        'h2.entry-title a',
+        '.post-header h3 a', // Common in Blogger
+    ];
     
-    const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    postUrls: {
-                        type: Type.ARRAY,
-                        items: { type: Type.STRING },
-                        description: "A list of URLs (relative or absolute) to individual blog posts."
-                    },
-                    nextPageUrl: {
-                        type: Type.STRING,
-                        nullable: true,
-                        description: "The URL (relative or absolute) to the next page of posts, or null if not present."
-                    }
-                },
-                required: ["postUrls", "nextPageUrl"]
-            }
+    doc.querySelectorAll(postLinkSelectors.join(', ')).forEach(el => {
+        const link = el as HTMLAnchorElement;
+        // Ensure we have a valid, absolute URL
+        if (link.href) {
+            postUrls.add(link.href);
         }
     });
 
-    try {
-        const jsonText = response.text.trim();
-        const parsed = JSON.parse(jsonText);
-        if (!Array.isArray(parsed.postUrls)) {
-            throw new Error("Response missing 'postUrls' array.");
+    // Use common texts to find the "next page" link.
+    const nextPageTexts = ['older posts', 'next page', 'next ›', '»'];
+    doc.querySelectorAll('a').forEach(el => {
+        const linkText = el.textContent?.trim().toLowerCase();
+        if (linkText && nextPageTexts.includes(linkText)) {
+            nextPageUrl = (el as HTMLAnchorElement).href;
         }
-        return parsed as { postUrls: string[]; nextPageUrl: string | null; };
-    } catch (e: any) {
-        throw new Error(`Failed to parse link extraction response from Gemini. Error: ${e.message}`);
-    }
+    });
+
+    return { postUrls: Array.from(postUrls), nextPageUrl };
 }
+
 
 // Helper function to extract content from a single post's HTML content
 async function extractContentFromHtml(htmlContent: string): Promise<BlogPost> {
@@ -86,7 +87,7 @@ Return a single JSON object with two keys: "title" and "content".
 
     const response = await ai.models.generateContent({
         model,
-        contents: prompt,
+        contents: [{ text: prompt }, { text: htmlContent }], // Pass HTML as separate part
         config: {
             responseMimeType: "application/json",
             responseSchema: {
@@ -142,7 +143,7 @@ export async function scrapeBlogPosts(url: string, options: ScrapeOptions): Prom
             const indexHtml = await fetchHtmlContent(currentPageUrl);
 
             onProgress({ type: 'status', message: `Analyzing page ${pageCount} for post links...` });
-            const { postUrls, nextPageUrl } = await getLinksAndNextPage(indexHtml);
+            const { postUrls, nextPageUrl } = getLinksAndNextPage(indexHtml);
 
             // Resolve URLs to be absolute
             const absolutePostUrls = postUrls.map(postUrl => new URL(postUrl, currentPageUrl!).href);
