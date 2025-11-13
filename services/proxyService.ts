@@ -18,39 +18,43 @@ const CORS_PROXIES = [
 ];
 
 /**
- * Fetches the raw HTML content of a URL using a fallback list of CORS proxies.
+ * Fetches the raw content of a URL using a fallback list of CORS proxies.
  * It intelligently handles different proxy responses and errors.
  *
  * @param url The original URL to fetch.
  * @param attempt The current attempt number (used for recursion).
- * @returns A promise that resolves with the HTML content as a string.
+ * @returns A promise that resolves with the content as a string.
  * @throws An error if all proxies fail.
  */
 export async function fetchWithProxy(url: string, attempt = 0): Promise<string> {
     if (attempt >= CORS_PROXIES.length) {
-        throw new Error(`Failed to fetch HTML for ${url} after trying all available CORS proxies. The target site might be down or blocking all proxies.`);
+        throw new Error(`Failed to fetch content for ${url} after trying all available CORS proxies. The target site might be down or blocking all proxies.`);
     }
 
     const proxyUrl = CORS_PROXIES[attempt](url);
     
     try {
         const response = await fetch(proxyUrl, {
-            headers: { 'Accept': 'text/html' }
+            headers: { 
+                // Use a generic Accept header to handle HTML, JSON, and XML feeds correctly.
+                'Accept': 'application/json, application/rss+xml, application/xml, text/xml, text/html, */*' 
+            }
         });
 
         if (!response.ok) {
             console.warn(`Proxy attempt ${attempt + 1} failed with status: ${response.status}. Trying next proxy...`);
             return await fetchWithProxy(url, attempt + 1);
         }
+        
+        const text = await response.text();
 
-        const contentType = response.headers.get('content-type');
-        // Some proxies might return a JSON error object instead of failing the request.
-        if (contentType && contentType.includes('application/json')) {
-             console.warn(`Proxy attempt ${attempt + 1} returned JSON instead of HTML. Trying next proxy...`);
+        // If the response body is empty, it's likely an issue with the proxy or target. Try the next one.
+        if (!text) {
+             console.warn(`Proxy attempt ${attempt + 1} for ${url} returned an empty response. Trying next proxy...`);
              return await fetchWithProxy(url, attempt + 1);
         }
 
-        return await response.text();
+        return text;
 
     } catch (e: any) {
         console.warn(`Proxy attempt ${attempt + 1} failed with a network error: ${e.message}. Trying next proxy...`);

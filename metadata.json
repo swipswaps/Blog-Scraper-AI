@@ -1,5 +1,5 @@
 {
-  "name": "Blog Scraper AI",
-  "description": "An application that uses AI to scrape all blog posts from a given Google Web Blog URL and provides the content as a downloadable JSON file.",
+  "name": "Blog Scraper",
+  "description": "An application to scrape, filter, and download blog posts from a website.",
   "requestFramePermissions": []
 }
