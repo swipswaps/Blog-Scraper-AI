@@ -1,8 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { BlogPost, ProgressUpdate } from './types';
 import PostList from './components/PostList';
 import StatusDisplay from './components/StatusDisplay';
 import { scrapeBlogPosts } from './services/geminiService';
+import { validateAndNormalizeUrl, validatePostLimit } from './utils/validation';
+import { downloadPostsAsCsv, downloadPostsAsJson } from './utils/download';
+import { DEFAULT_BLOG_URL, DEFAULT_POST_LIMIT } from './constants';
 
 const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -16,49 +19,36 @@ const SearchIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
-/**
- * Converts an array of BlogPost objects into a CSV-formatted string.
- * @param posts The array of blog posts to convert.
- * @returns A string representing the data in CSV format.
- */
-const convertToCsv = (posts: BlogPost[]): string => {
-    const escapeCsvField = (field: string | null | undefined): string => {
-        if (field === null || field === undefined) {
-            return '';
-        }
-        let value = String(field);
-        if (value.search(/("|,|\n)/g) >= 0) {
-            value = value.replace(/"/g, '""');
-            value = `"${value}"`;
-        }
-        return value;
-    };
-
-    const header = ['title', 'content'];
-    const headerString = header.join(',');
-
-    const rows = posts.map(post => {
-        const title = escapeCsvField(post.title);
-        const content = escapeCsvField(post.content);
-        return [title, content].join(',');
-    });
-
-    return [headerString, ...rows].join('\n');
-};
-
 const App: React.FC = () => {
-    const [blogUrl, setBlogUrl] = useState<string>('https://johnssolarblog.com/');
-    const [postLimit, setPostLimit] = useState<string>('10');
+    const [blogUrl, setBlogUrl] = useState<string>(DEFAULT_BLOG_URL);
+    const [postLimit, setPostLimit] = useState<string>(DEFAULT_POST_LIMIT);
     const [posts, setPosts] = useState<BlogPost[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [progressMessage, setProgressMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    
+    const [validationError, setValidationError] = useState<string | null>(null);
+
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [sortOrder, setSortOrder] = useState<string>('default');
     const [downloadCount, setDownloadCount] = useState<string>('');
-    
+
     const handleFetchPosts = useCallback(() => {
+        // Validate URL
+        const urlValidation = validateAndNormalizeUrl(blogUrl);
+        if (!urlValidation.valid) {
+            setValidationError(urlValidation.error || 'Invalid URL');
+            return;
+        }
+
+        // Validate post limit
+        const limitValidation = validatePostLimit(postLimit);
+        if (!limitValidation.valid) {
+            setValidationError(limitValidation.error || 'Invalid limit');
+            return;
+        }
+
+        // Clear validation errors
+        setValidationError(null);
         setPosts([]);
         setError(null);
         setProgressMessage('Initializing...');
@@ -66,11 +56,10 @@ const App: React.FC = () => {
         setSearchQuery('');
         setSortOrder('default');
 
-        const limit = parseInt(postLimit, 10);
         let postCount = 0;
 
-        scrapeBlogPosts(blogUrl, {
-            limit: isNaN(limit) || limit <= 0 ? undefined : limit,
+        scrapeBlogPosts(urlValidation.url, {
+            limit: limitValidation.limit,
             onProgress: (update: ProgressUpdate) => {
                 if (update.type === 'status') {
                     setProgressMessage(update.message);
@@ -82,6 +71,9 @@ const App: React.FC = () => {
             },
             onComplete: () => {
                 setIsLoading(false);
+                if (postCount === 0) {
+                    setProgressMessage('No blog posts found. The site structure may not be supported.');
+                }
             },
             onError: (err: Error) => {
                 setError(err.message || 'An unknown error occurred during scraping.');
@@ -120,31 +112,33 @@ const App: React.FC = () => {
 
         const limit = parseInt(downloadCount, 10);
         const postsToDownload = limit > 0 ? filteredPosts.slice(0, limit) : filteredPosts;
-        
-        let dataString: string;
-        let blobType: string;
-        let fileExtension: string;
 
         if (format === 'csv') {
-            dataString = convertToCsv(postsToDownload);
-            blobType = 'text/csv;charset=utf-8;';
-            fileExtension = 'csv';
+            downloadPostsAsCsv(postsToDownload);
         } else {
-            dataString = JSON.stringify(postsToDownload, null, 2);
-            blobType = 'application/json';
-            fileExtension = 'json';
+            downloadPostsAsJson(postsToDownload);
         }
-        
-        const blob = new Blob([dataString], { type: blobType });
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `blog-posts-${new Date().toISOString()}.${fileExtension}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
     }, [filteredPosts, downloadCount]);
+
+    // Keyboard shortcut: Ctrl/Cmd + Enter to fetch posts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !isLoading) {
+                e.preventDefault();
+                handleFetchPosts();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleFetchPosts, isLoading]);
+
+    // Clear validation error when inputs change
+    useEffect(() => {
+        if (validationError) {
+            setValidationError(null);
+        }
+    }, [blogUrl, postLimit]);
 
     return (
         <div className="min-h-screen bg-primary flex flex-col items-center p-4 sm:p-6 lg:p-8">
@@ -154,6 +148,9 @@ const App: React.FC = () => {
                 </h1>
                 <p className="text-lg text-text-secondary">
                     Fetch, filter, and download blog posts from a URL.
+                </p>
+                <p className="text-sm text-text-secondary mt-2 opacity-75">
+                    💡 Tip: Press <kbd className="px-2 py-1 bg-secondary rounded text-xs">Ctrl+Enter</kbd> to fetch posts
                 </p>
             </header>
 
@@ -200,6 +197,12 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {validationError && (
+                    <div className="w-full max-w-4xl p-4 my-4 text-sm text-yellow-300 bg-yellow-900/50 rounded-lg" role="alert">
+                        <span className="font-medium">Validation Error:</span> {validationError}
+                    </div>
+                )}
 
                 <StatusDisplay
                     isLoading={isLoading}
@@ -287,15 +290,6 @@ const App: React.FC = () => {
              <footer className="w-full max-w-4xl text-center mt-8 text-text-secondary text-sm">
                 <p>For personal and educational use.</p>
             </footer>
-             <style>{`
-                @keyframes fade-in {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.5s ease-out forwards;
-                }
-             `}</style>
         </div>
     );
 };

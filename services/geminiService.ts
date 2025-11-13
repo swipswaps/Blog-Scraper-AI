@@ -77,10 +77,17 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
 
             onProgress({ type: 'status', message: `Processing ${itemsToProcess.length} posts...` });
 
+            let successCount = 0;
+            let failCount = 0;
+
             for (let i = 0; i < itemsToProcess.length; i++) {
                 const item = itemsToProcess[i];
+                const progress = Math.round(((i + 1) / itemsToProcess.length) * 100);
 
-                onProgress({ type: 'status', message: `Fetching post ${i + 1}/${itemsToProcess.length}: ${item.title}` });
+                onProgress({
+                    type: 'status',
+                    message: `Fetching post ${i + 1}/${itemsToProcess.length} (${progress}%): ${item.title}`
+                });
 
                 try {
                     // Fetch the full post content from its URL
@@ -149,6 +156,7 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                                 content: contentText
                             }
                         });
+                        successCount++;
                     } else {
                         // Fallback to HTML content from feed if available
                         if (item.html_content) {
@@ -160,6 +168,10 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                                     content: fallbackContent || 'Content not available'
                                 }
                             });
+                            successCount++;
+                        } else {
+                            failCount++;
+                            console.warn(`No content available for post: ${item.title}`);
                         }
                     }
 
@@ -167,6 +179,7 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                     await new Promise(resolve => setTimeout(resolve, 100));
 
                 } catch (postError: any) {
+                    failCount++;
                     console.warn(`Failed to fetch post "${item.title}":`, postError.message);
                     // Use excerpt from feed as fallback
                     if (item.html_content) {
@@ -178,8 +191,23 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                                 content: fallbackContent || 'Content not available'
                             }
                         });
+                        successCount++;
+                        failCount--;
                     }
                 }
+            }
+
+            // Report completion stats
+            if (failCount > 0) {
+                onProgress({
+                    type: 'status',
+                    message: `Completed: ${successCount} posts fetched successfully, ${failCount} failed`
+                });
+            } else {
+                onProgress({
+                    type: 'status',
+                    message: `Successfully fetched all ${successCount} posts`
+                });
             }
 
             onComplete();
