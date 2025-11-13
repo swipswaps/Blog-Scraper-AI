@@ -181,6 +181,42 @@ interface Post {
 - Reduce the post limit to fetch fewer posts
 - The app fetches each post individually for full content (intentional for accuracy)
 
+## 🌐 Deployment
+
+This app can be deployed to various free hosting platforms. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+### Quick Deploy
+
+**Vercel (Recommended):**
+```bash
+npm install -g vercel
+vercel login
+npm run build
+vercel --prod
+```
+
+**Netlify:**
+```bash
+npm install -g netlify-cli
+netlify login
+npm run build
+netlify deploy --prod --dir=dist
+```
+
+**GitHub Pages:**
+- Already configured! Just push to `main` branch
+- Enable GitHub Pages in repository settings
+- Your site: `https://yourusername.github.io/Blog-Scraper-AI/`
+
+**Or use the deployment scripts:**
+```bash
+./scripts/deploy-vercel.sh
+# or
+./scripts/deploy-netlify.sh
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for more options and detailed guides.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
