@@ -19,6 +19,30 @@ A powerful React-based web application that scrapes blog posts from websites and
 - **📖 Pagination**: View posts 5 at a time with accordion-style expansion
 - **⚡ Real-time Progress**: Live status updates during scraping process
 
+## ⚡ Quick Start (Automated)
+
+**New users? Run this one command:**
+
+```bash
+./setup-wizard.sh
+```
+
+This interactive wizard will:
+- ✅ Check your system
+- ✅ Install dependencies
+- ✅ Test the app locally
+- ✅ Deploy to your chosen platform
+
+**Already set up? Deploy in one command:**
+
+```bash
+./deploy.sh
+```
+
+See [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) for all automated deployment options.
+
+---
+
 ## 🚀 How It Works
 
 ### Architecture
@@ -50,10 +74,29 @@ The scraper uses a multi-layered approach:
 
 ## 📋 Prerequisites
 
-- **Node.js** (v16 or higher recommended)
+- **Node.js** (v18 or higher recommended)
 - **npm** or **yarn**
 
+**Don't have these?** The `setup-wizard.sh` script will help you!
+
 ## 🛠️ Installation
+
+### Option 1: Automated Setup (Recommended) ⭐
+
+**For first-time users:**
+```bash
+git clone https://github.com/swipswaps/Blog-Scraper-AI.git
+cd Blog-Scraper-AI
+./setup-wizard.sh
+```
+
+The wizard will:
+- ✅ Check system requirements
+- ✅ Install dependencies
+- ✅ Test the app locally
+- ✅ Optionally deploy
+
+### Option 2: Manual Setup
 
 1. **Clone the repository**:
    ```bash
@@ -183,9 +226,33 @@ interface Post {
 
 ## 🌐 Deployment
 
-This app can be deployed to various free hosting platforms. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+### 🚀 Automated Deployment (Easiest)
 
-### Quick Deploy
+**Interactive deployment with guided setup:**
+```bash
+./deploy.sh
+```
+
+This script will:
+- ✅ Check dependencies and install if needed
+- ✅ Build your project automatically
+- ✅ Show platform comparison
+- ✅ Handle authentication
+- ✅ Deploy to your chosen platform
+- ✅ Open deployed site in browser
+
+**One-command deployment (if you know which platform):**
+```bash
+./quick-deploy.sh vercel    # Deploy to Vercel
+./quick-deploy.sh netlify   # Deploy to Netlify
+./quick-deploy.sh github    # Deploy to GitHub Pages
+```
+
+See [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) for detailed script documentation.
+
+---
+
+### 📖 Manual Deployment
 
 **Vercel (Recommended):**
 ```bash
@@ -208,14 +275,7 @@ netlify deploy --prod --dir=dist
 - Enable GitHub Pages in repository settings
 - Your site: `https://yourusername.github.io/Blog-Scraper-AI/`
 
-**Or use the deployment scripts:**
-```bash
-./scripts/deploy-vercel.sh
-# or
-./scripts/deploy-netlify.sh
-```
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for more options and detailed guides.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive deployment guides.
 
 ## 🤝 Contributing
 
