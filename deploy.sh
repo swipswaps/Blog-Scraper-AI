@@ -5,6 +5,14 @@
 
 set -e
 
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source process manager utilities
+if [ -f "$SCRIPT_DIR/scripts/process-manager.sh" ]; then
+    source "$SCRIPT_DIR/scripts/process-manager.sh"
+fi
+
 # Colors for better UX
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,6 +32,7 @@ GLOBE="🌐"
 SPARKLES="✨"
 THINKING="🤔"
 PARTY="🎉"
+WARNING="⚠️"
 
 # Clear screen for clean start
 clear
@@ -181,16 +190,21 @@ choose_platform() {
     echo -e "   ${CYAN}→${NC} Auto-deploy via GitHub Actions"
     echo -e "   ${CYAN}→${NC} 100GB bandwidth/month\n"
 
-    echo -e "${GREEN}4)${NC} ${ROCKET} Cloudflare Pages"
+    echo -e "${GREEN}4)${NC} ${ROCKET} GitLab Pages ${YELLOW}(Already configured!)${NC}"
+    echo -e "   ${CYAN}→${NC} Free hosting from GitLab"
+    echo -e "   ${CYAN}→${NC} Auto-deploy via GitLab CI/CD"
+    echo -e "   ${CYAN}→${NC} 10GB bandwidth/month\n"
+
+    echo -e "${GREEN}5)${NC} ${ROCKET} Cloudflare Pages"
     echo -e "   ${CYAN}→${NC} Unlimited bandwidth"
     echo -e "   ${CYAN}→${NC} Global CDN"
     echo -e "   ${CYAN}→${NC} Fast edge network\n"
 
-    echo -e "${GREEN}5)${NC} ${THINKING} Show me a comparison first\n"
+    echo -e "${GREEN}6)${NC} ${THINKING} Show me a comparison first\n"
 
-    echo -e "${GREEN}6)${NC} ${CROSS} Exit\n"
+    echo -e "${GREEN}7)${NC} ${CROSS} Exit\n"
 
-    echo -ne "${YELLOW}Enter your choice [1-6] (default: 1): ${NC}"
+    echo -ne "${YELLOW}Enter your choice [1-7] (default: 1): ${NC}"
     read -r platform_choice
 
     # Default to Vercel if no input
@@ -200,9 +214,10 @@ choose_platform() {
         1) deploy_vercel ;;
         2) deploy_netlify ;;
         3) deploy_github_pages ;;
-        4) deploy_cloudflare ;;
-        5) show_comparison ;;
-        6) echo -e "\n${YELLOW}Deployment cancelled${NC}\n"; exit 0 ;;
+        4) deploy_gitlab_pages ;;
+        5) deploy_cloudflare ;;
+        6) show_comparison ;;
+        7) echo -e "\n${YELLOW}Deployment cancelled${NC}\n"; exit 0 ;;
         *) echo -e "${RED}Invalid choice${NC}"; choose_platform ;;
     esac
 }
@@ -220,6 +235,7 @@ show_comparison() {
     echo -e "${CYAN}│${NC} Vercel      ${CYAN}│${NC} 2 min    ${CYAN}│${NC} 100GB/mo   ${CYAN}│${NC} React/Vite   ${CYAN}│${NC} ⭐⭐⭐   ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC} Netlify     ${CYAN}│${NC} 2 min    ${CYAN}│${NC} 100GB/mo   ${CYAN}│${NC} Static Sites ${CYAN}│${NC} ⭐⭐⭐   ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC} GitHub      ${CYAN}│${NC} 5 min    ${CYAN}│${NC} 100GB/mo   ${CYAN}│${NC} GitHub Users ${CYAN}│${NC} ⭐⭐    ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC} GitLab      ${CYAN}│${NC} 5 min    ${CYAN}│${NC} 10GB/mo    ${CYAN}│${NC} GitLab Users ${CYAN}│${NC} ⭐⭐    ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC} Cloudflare  ${CYAN}│${NC} 3 min    ${CYAN}│${NC} Unlimited  ${CYAN}│${NC} High Traffic ${CYAN}│${NC} ⭐⭐⭐   ${CYAN}│${NC}"
     echo -e "${CYAN}└─────────────┴──────────┴────────────┴──────────────┴─────────┘${NC}\n"
 
@@ -428,6 +444,123 @@ deploy_github_pages() {
         echo -e "\n${GREEN}${PARTY} GitHub Pages setup complete!${NC}\n"
     else
         echo -e "\n${RED}${CROSS} Failed to push to GitHub${NC}"
+        exit 1
+    fi
+}
+
+# Function to deploy to GitLab Pages
+deploy_gitlab_pages() {
+    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${PURPLE}${ROCKET} Setting up GitLab Pages${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+    echo -e "${GREEN}${CHECK} GitLab Pages CI/CD is already configured!${NC}"
+    echo -e "${CYAN}The workflow file is at: ${YELLOW}.gitlab-ci.yml${NC}\n"
+
+    # Check if we're in a git repo
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo -e "${RED}${CROSS} Not a git repository${NC}"
+        exit 1
+    fi
+
+    # Check for GitLab remote
+    local remote_url=$(git config --get remote.origin.url)
+    if [ -z "$remote_url" ]; then
+        echo -e "${RED}${CROSS} No remote repository configured${NC}"
+        exit 1
+    fi
+
+    # Check if it's a GitLab repo
+    if [[ ! "$remote_url" =~ gitlab ]]; then
+        echo -e "${YELLOW}${WARNING} This doesn't appear to be a GitLab repository${NC}"
+        echo -e "${CYAN}Current remote: ${remote_url}${NC}\n"
+        echo -e "${YELLOW}Would you like to:${NC}"
+        echo -e "${CYAN}1)${NC} Add a GitLab remote"
+        echo -e "${CYAN}2)${NC} Continue anyway"
+        echo -e "${CYAN}3)${NC} Cancel\n"
+        echo -ne "${YELLOW}Enter your choice [1-3]: ${NC}"
+        read -r gitlab_choice
+
+        case $gitlab_choice in
+            1)
+                echo -ne "${YELLOW}Enter your GitLab repository URL: ${NC}"
+                read -r gitlab_url
+                git remote add gitlab "$gitlab_url"
+                echo -e "${GREEN}${CHECK} GitLab remote added${NC}"
+                remote_url="$gitlab_url"
+                ;;
+            2)
+                echo -e "${YELLOW}Continuing...${NC}"
+                ;;
+            3)
+                echo -e "${YELLOW}Cancelled${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid choice${NC}"
+                deploy_gitlab_pages
+                return
+                ;;
+        esac
+    fi
+
+    # Check if there are uncommitted changes
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        echo -e "${YELLOW}${WARNING} You have uncommitted changes${NC}"
+        echo -e "${CYAN}Would you like me to commit them? (y/n)${NC}"
+        read -r commit_changes
+
+        if [[ $commit_changes =~ ^[Yy]$ ]]; then
+            echo -ne "${YELLOW}Enter commit message (default: 'Deploy to GitLab Pages'): ${NC}"
+            read -r commit_msg
+            commit_msg=${commit_msg:-"Deploy to GitLab Pages"}
+
+            git add .
+            git commit -m "$commit_msg"
+            echo -e "${GREEN}${CHECK} Changes committed${NC}"
+        fi
+    fi
+
+    # Determine which remote to push to
+    local push_remote="origin"
+    if git remote | grep -q "^gitlab$"; then
+        push_remote="gitlab"
+    fi
+
+    # Extract repo info
+    local repo_path=$(echo "$remote_url" | sed -n 's/.*gitlab\.com[:/]\(.*\)\.git/\1/p')
+    if [ -z "$repo_path" ]; then
+        repo_path=$(echo "$remote_url" | sed -n 's/.*gitlab\.com[:/]\(.*\)/\1/p')
+    fi
+
+    echo -e "\n${CYAN}${ROCKET} Pushing to GitLab...${NC}"
+    git push "$push_remote" main || git push "$push_remote" master
+
+    if [ $? -eq 0 ]; then
+        echo -e "\n${GREEN}${CHECK} Pushed to GitLab!${NC}\n"
+        echo -e "${YELLOW}${GEAR} Next steps:${NC}"
+        echo -e "${CYAN}1. Go to your GitLab project: ${YELLOW}https://gitlab.com/${repo_path}${NC}"
+        echo -e "${CYAN}2. Navigate to: ${YELLOW}Settings → Pages${NC}"
+        echo -e "${CYAN}3. Wait 2-3 minutes for the CI/CD pipeline to complete${NC}"
+        echo -e "${CYAN}4. Your site will be live at: ${YELLOW}https://${repo_path//\//.}.gitlab.io/${NC}\n"
+
+        echo -ne "${YELLOW}Open GitLab Pages settings now? (y/n): ${NC}"
+        read -r open_settings
+        if [[ $open_settings =~ ^[Yy]$ ]]; then
+            local gitlab_url="https://gitlab.com/${repo_path}/-/settings/pages"
+            if command_exists xdg-open; then
+                xdg-open "$gitlab_url"
+            elif command_exists open; then
+                open "$gitlab_url"
+            else
+                echo -e "${YELLOW}Please open this URL manually:${NC}"
+                echo -e "${CYAN}${gitlab_url}${NC}"
+            fi
+        fi
+
+        echo -e "\n${GREEN}${PARTY} GitLab Pages setup complete!${NC}\n"
+    else
+        echo -e "\n${RED}${CROSS} Failed to push to GitLab${NC}"
         exit 1
     fi
 }

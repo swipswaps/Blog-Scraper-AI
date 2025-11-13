@@ -5,6 +5,14 @@
 
 set -e
 
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source process manager utilities
+if [ -f "$SCRIPT_DIR/scripts/process-manager.sh" ]; then
+    source "$SCRIPT_DIR/scripts/process-manager.sh"
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -110,19 +118,74 @@ echo -e "${PURPLE}🧪 Step 3/3: Test the App${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-echo -e "${CYAN}Would you like to test the app locally before deploying?${NC}"
-echo -e "${YELLOW}This will start a development server at http://localhost:3000${NC}"
-echo ""
-echo -ne "${YELLOW}Start local server? (y/n): ${NC}"
-read -r start_local
+# Check if dev server is already running
+if type check_dev_server >/dev/null 2>&1 && check_dev_server; then
+    echo -e "${YELLOW}⚠️  A development server is already running!${NC}"
+    echo -e "${CYAN}You can access it at: ${GREEN}http://localhost:3000${NC}"
+    echo ""
+    echo -e "${YELLOW}What would you like to do?${NC}"
+    echo -e "${CYAN}1)${NC} Keep it running (skip to deployment)"
+    echo -e "${CYAN}2)${NC} Stop it and restart"
+    echo -e "${CYAN}3)${NC} Skip local testing"
+    echo ""
+    echo -ne "${YELLOW}Enter your choice [1-3]: ${NC}"
+    read -r server_choice
 
-if [[ $start_local =~ ^[Yy]$ ]]; then
+    case $server_choice in
+        1)
+            echo -e "${GREEN}✅ Keeping existing server running${NC}"
+            echo -e "${CYAN}Visit http://localhost:3000 to test${NC}"
+            ;;
+        2)
+            if type stop_dev_server >/dev/null 2>&1; then
+                stop_dev_server
+                echo ""
+                echo -e "${GREEN}🚀 Starting development server...${NC}"
+                echo -e "${CYAN}Press Ctrl+C to stop the server when done testing${NC}"
+                echo ""
+                sleep 2
+                npm run dev
+            fi
+            ;;
+        3)
+            echo -e "${YELLOW}Skipping local testing${NC}"
+            ;;
+    esac
+else
+    echo -e "${CYAN}Would you like to test the app locally before deploying?${NC}"
+    echo -e "${YELLOW}This will start a development server at http://localhost:3000${NC}"
     echo ""
-    echo -e "${GREEN}🚀 Starting development server...${NC}"
-    echo -e "${CYAN}Press Ctrl+C to stop the server when done testing${NC}"
-    echo ""
-    sleep 2
-    npm run dev
+
+    # Check if port 3000 is in use
+    if type check_port >/dev/null 2>&1 && check_port 3000; then
+        echo -e "${YELLOW}⚠️  Port 3000 is already in use${NC}"
+        if type handle_port_conflict >/dev/null 2>&1; then
+            if handle_port_conflict 3000; then
+                echo -ne "${YELLOW}Start local server now? (y/n): ${NC}"
+                read -r start_local
+                if [[ $start_local =~ ^[Yy]$ ]]; then
+                    echo ""
+                    echo -e "${GREEN}🚀 Starting development server...${NC}"
+                    echo -e "${CYAN}Press Ctrl+C to stop the server when done testing${NC}"
+                    echo ""
+                    sleep 2
+                    npm run dev
+                fi
+            fi
+        fi
+    else
+        echo -ne "${YELLOW}Start local server? (y/n): ${NC}"
+        read -r start_local
+
+        if [[ $start_local =~ ^[Yy]$ ]]; then
+            echo ""
+            echo -e "${GREEN}🚀 Starting development server...${NC}"
+            echo -e "${CYAN}Press Ctrl+C to stop the server when done testing${NC}"
+            echo ""
+            sleep 2
+            npm run dev
+        fi
+    fi
 fi
 
 # Deployment Option
