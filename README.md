@@ -21,6 +21,8 @@ A powerful React-based web application that scrapes blog posts from websites and
 
 ## ⚡ Quick Start (Automated)
 
+**👋 First time here? Start with the [Complete Beginner's Guide](GETTING_STARTED.md)**
+
 **New users? Run this one command:**
 
 ```bash
@@ -39,7 +41,10 @@ This interactive wizard will:
 ./deploy.sh
 ```
 
-See [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) for all automated deployment options.
+**📚 Documentation:**
+- [🚀 Getting Started Guide](GETTING_STARTED.md) - Complete beginner's walkthrough
+- [📜 Scripts Guide](SCRIPTS_GUIDE.md) - All automated deployment options
+- [🤖 Automation Guide](AUTOMATION_GUIDE.md) - How automation works
 
 ---
 
