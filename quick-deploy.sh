@@ -283,27 +283,37 @@ case $PLATFORM in
 
             echo -e "${YELLOW}📋 What's Next?${NC}\n"
 
-            echo -e "${CYAN}1. ${GREEN}Monitor Deployment${NC}"
+            echo -e "${CYAN}1. ${GREEN}Enable GitHub Pages (REQUIRED - First Time Only)${NC}"
+            echo -e "   ${PURPLE}→${NC} Open: ${CYAN}https://github.com/${repo_path}/settings/pages${NC}"
+            echo -e "   ${PURPLE}→${NC} Under 'Build and deployment', set Source to: ${YELLOW}'GitHub Actions'${NC}"
+            echo -e "   ${PURPLE}→${NC} Save settings\n"
+
+            echo -e "${CYAN}2. ${GREEN}Monitor Deployment${NC}"
             echo -e "   ${PURPLE}→${NC} View progress: ${CYAN}https://github.com/${repo_path}/actions${NC}"
             echo -e "   ${PURPLE}→${NC} Wait 2-3 minutes for build to complete\n"
 
-            echo -e "${CYAN}2. ${GREEN}View Your Live App${NC}"
+            echo -e "${CYAN}3. ${GREEN}View Your Live App${NC}"
             echo -e "   ${PURPLE}→${NC} Once deployed: ${CYAN}https://${repo_path%%/*}.github.io/${repo_path##*/}${NC}"
             echo -e "   ${PURPLE}→${NC} Or check: ${CYAN}https://github.com/${repo_path}/settings/pages${NC}\n"
 
-            echo -e "${CYAN}3. ${GREEN}Test Your Blog Scraper${NC}"
+            echo -e "${CYAN}4. ${GREEN}Test Your Blog Scraper${NC}"
             echo -e "   ${PURPLE}→${NC} Enter a GoDaddy blog URL (e.g., https://example.godaddysites.com)"
             echo -e "   ${PURPLE}→${NC} Click 'Fetch Blog Posts'"
             echo -e "   ${PURPLE}→${NC} View and export your scraped content\n"
 
-            echo -e "${CYAN}4. ${GREEN}Automatic Deployments${NC}"
+            echo -e "${CYAN}5. ${GREEN}Automatic Deployments${NC}"
             echo -e "   ${PURPLE}→${NC} Every git push to main will auto-deploy"
             echo -e "   ${PURPLE}→${NC} No manual steps needed!\n"
 
             echo -e "${YELLOW}💡 Pro Tips:${NC}"
+            echo -e "${CYAN}• Run ${GREEN}./enable-github-pages.sh${CYAN} for interactive setup${NC}"
             echo -e "${CYAN}• Check Actions tab if deployment fails${NC}"
-            echo -e "${CYAN}• Enable GitHub Pages in repository settings${NC}"
             echo -e "${CYAN}• Use a custom domain if desired${NC}\n"
+
+            echo -e "${YELLOW}${WARNING} IMPORTANT: If you get a 404 error:${NC}"
+            echo -e "${CYAN}• GitHub Pages is not enabled yet${NC}"
+            echo -e "${CYAN}• Run: ${GREEN}./enable-github-pages.sh${NC}"
+            echo -e "${CYAN}• Or manually enable at: ${YELLOW}https://github.com/${repo_path}/settings/pages${NC}\n"
 
             echo -e "${GREEN}${PARTY} Deployment in progress! ${PARTY}${NC}\n"
         else
