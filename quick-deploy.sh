@@ -102,7 +102,7 @@ case $PLATFORM in
             fi
             echo -e "\n${GREEN}${CHECK} Successfully logged in!${NC}\n"
         else
-            local user=$(vercel whoami 2>/dev/null)
+            user=$(vercel whoami 2>/dev/null)
             echo -e "${GREEN}${CHECK} Logged in as: ${CYAN}${user}${NC}\n"
         fi
 
@@ -122,7 +122,38 @@ case $PLATFORM in
 
         # Deploy
         if vercel --prod; then
-            echo -e "\n${GREEN}${PARTY} Successfully deployed to Vercel!${NC}\n"
+            echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${GREEN}${PARTY} Successfully deployed to Vercel!${NC}"
+            echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+            # Extract the production URL from Vercel output
+            echo -e "${CYAN}${ROCKET} Your app is now live!${NC}\n"
+
+            echo -e "${YELLOW}📋 What's Next?${NC}\n"
+
+            echo -e "${CYAN}1. ${GREEN}View Your Live App${NC}"
+            echo -e "   ${PURPLE}→${NC} Check the Production URL above"
+            echo -e "   ${PURPLE}→${NC} Or visit: ${CYAN}https://vercel.com/dashboard${NC}\n"
+
+            echo -e "${CYAN}2. ${GREEN}Test Your Blog Scraper${NC}"
+            echo -e "   ${PURPLE}→${NC} Enter a GoDaddy blog URL (e.g., https://example.godaddysites.com)"
+            echo -e "   ${PURPLE}→${NC} Click 'Fetch Blog Posts'"
+            echo -e "   ${PURPLE}→${NC} View and export your scraped content\n"
+
+            echo -e "${CYAN}3. ${GREEN}Automatic Deployments${NC}"
+            echo -e "   ${PURPLE}→${NC} Connect your GitHub repo in Vercel dashboard"
+            echo -e "   ${PURPLE}→${NC} Every git push will auto-deploy\n"
+
+            echo -e "${CYAN}4. ${GREEN}Manage Your Project${NC}"
+            echo -e "   ${PURPLE}→${NC} Dashboard: ${CYAN}https://vercel.com/dashboard${NC}"
+            echo -e "   ${PURPLE}→${NC} View logs, analytics, and settings\n"
+
+            echo -e "${YELLOW}💡 Pro Tips:${NC}"
+            echo -e "${CYAN}• Set up a custom domain in Vercel dashboard${NC}"
+            echo -e "${CYAN}• Enable analytics to track usage${NC}"
+            echo -e "${CYAN}• Check deployment logs if issues occur${NC}\n"
+
+            echo -e "${GREEN}${PARTY} Deployment complete! Happy scraping! ${PARTY}${NC}\n"
         else
             echo -e "\n${RED}${CROSS} Deployment failed${NC}"
             echo -e "${YELLOW}Common issues:${NC}"
@@ -178,7 +209,37 @@ case $PLATFORM in
 
         # Deploy
         if netlify deploy --prod --dir=dist; then
-            echo -e "\n${GREEN}${PARTY} Successfully deployed to Netlify!${NC}\n"
+            echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${GREEN}${PARTY} Successfully deployed to Netlify!${NC}"
+            echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+            echo -e "${CYAN}${ROCKET} Your app is now live!${NC}\n"
+
+            echo -e "${YELLOW}📋 What's Next?${NC}\n"
+
+            echo -e "${CYAN}1. ${GREEN}View Your Live App${NC}"
+            echo -e "   ${PURPLE}→${NC} Check the Website URL above"
+            echo -e "   ${PURPLE}→${NC} Or visit: ${CYAN}https://app.netlify.com/sites${NC}\n"
+
+            echo -e "${CYAN}2. ${GREEN}Test Your Blog Scraper${NC}"
+            echo -e "   ${PURPLE}→${NC} Enter a GoDaddy blog URL (e.g., https://example.godaddysites.com)"
+            echo -e "   ${PURPLE}→${NC} Click 'Fetch Blog Posts'"
+            echo -e "   ${PURPLE}→${NC} View and export your scraped content\n"
+
+            echo -e "${CYAN}3. ${GREEN}Automatic Deployments${NC}"
+            echo -e "   ${PURPLE}→${NC} Connect your GitHub repo in Netlify dashboard"
+            echo -e "   ${PURPLE}→${NC} Every git push will auto-deploy\n"
+
+            echo -e "${CYAN}4. ${GREEN}Manage Your Project${NC}"
+            echo -e "   ${PURPLE}→${NC} Dashboard: ${CYAN}https://app.netlify.com${NC}"
+            echo -e "   ${PURPLE}→${NC} View logs, analytics, and settings\n"
+
+            echo -e "${YELLOW}💡 Pro Tips:${NC}"
+            echo -e "${CYAN}• Set up a custom domain in Netlify dashboard${NC}"
+            echo -e "${CYAN}• Enable form handling and serverless functions${NC}"
+            echo -e "${CYAN}• Check deploy logs if issues occur${NC}\n"
+
+            echo -e "${GREEN}${PARTY} Deployment complete! Happy scraping! ${PARTY}${NC}\n"
         else
             echo -e "\n${RED}${CROSS} Deployment failed${NC}"
             echo -e "${YELLOW}Common issues:${NC}"
@@ -212,10 +273,39 @@ case $PLATFORM in
         git commit -m "Deploy to GitHub Pages" 2>/dev/null || echo -e "${YELLOW}No changes to commit${NC}"
 
         if git push origin main 2>&1; then
-            echo -e "\n${GREEN}${CHECK} Pushed to GitHub!${NC}"
-            echo -e "${CYAN}GitHub Actions will deploy automatically${NC}"
-            echo -e "${YELLOW}View progress: ${CYAN}https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/actions${NC}\n"
-            echo -e "${GREEN}${PARTY} Deployment initiated!${NC}\n"
+            repo_path=$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')
+
+            echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${GREEN}${PARTY} Deployment initiated!${NC}"
+            echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+            echo -e "${CYAN}${ROCKET} GitHub Actions is building your app...${NC}\n"
+
+            echo -e "${YELLOW}📋 What's Next?${NC}\n"
+
+            echo -e "${CYAN}1. ${GREEN}Monitor Deployment${NC}"
+            echo -e "   ${PURPLE}→${NC} View progress: ${CYAN}https://github.com/${repo_path}/actions${NC}"
+            echo -e "   ${PURPLE}→${NC} Wait 2-3 minutes for build to complete\n"
+
+            echo -e "${CYAN}2. ${GREEN}View Your Live App${NC}"
+            echo -e "   ${PURPLE}→${NC} Once deployed: ${CYAN}https://${repo_path%%/*}.github.io/${repo_path##*/}${NC}"
+            echo -e "   ${PURPLE}→${NC} Or check: ${CYAN}https://github.com/${repo_path}/settings/pages${NC}\n"
+
+            echo -e "${CYAN}3. ${GREEN}Test Your Blog Scraper${NC}"
+            echo -e "   ${PURPLE}→${NC} Enter a GoDaddy blog URL (e.g., https://example.godaddysites.com)"
+            echo -e "   ${PURPLE}→${NC} Click 'Fetch Blog Posts'"
+            echo -e "   ${PURPLE}→${NC} View and export your scraped content\n"
+
+            echo -e "${CYAN}4. ${GREEN}Automatic Deployments${NC}"
+            echo -e "   ${PURPLE}→${NC} Every git push to main will auto-deploy"
+            echo -e "   ${PURPLE}→${NC} No manual steps needed!\n"
+
+            echo -e "${YELLOW}💡 Pro Tips:${NC}"
+            echo -e "${CYAN}• Check Actions tab if deployment fails${NC}"
+            echo -e "${CYAN}• Enable GitHub Pages in repository settings${NC}"
+            echo -e "${CYAN}• Use a custom domain if desired${NC}\n"
+
+            echo -e "${GREEN}${PARTY} Deployment in progress! ${PARTY}${NC}\n"
         else
             echo -e "\n${RED}${CROSS} Failed to push to GitHub${NC}"
             echo -e "${YELLOW}Common issues:${NC}"
@@ -249,7 +339,7 @@ case $PLATFORM in
         git commit -m "Deploy to GitLab Pages" 2>/dev/null || echo -e "${YELLOW}No changes to commit${NC}"
 
         # Check if gitlab remote exists, otherwise use origin
-        local push_success=false
+        push_success=false
         if git remote | grep -q "^gitlab$"; then
             if git push gitlab main 2>&1 || git push gitlab master 2>&1; then
                 push_success=true
@@ -261,10 +351,39 @@ case $PLATFORM in
         fi
 
         if [ "$push_success" = true ]; then
-            echo -e "\n${GREEN}${CHECK} Pushed to GitLab!${NC}"
-            echo -e "${CYAN}GitLab CI/CD will deploy automatically${NC}"
-            echo -e "${YELLOW}View pipeline: ${CYAN}$(git config --get remote.origin.url | sed 's/\.git$//')/-/pipelines${NC}\n"
-            echo -e "${GREEN}${PARTY} Deployment initiated!${NC}\n"
+            repo_url=$(git config --get remote.origin.url | sed 's/\.git$//')
+
+            echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${GREEN}${PARTY} Deployment initiated!${NC}"
+            echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+
+            echo -e "${CYAN}${ROCKET} GitLab CI/CD is building your app...${NC}\n"
+
+            echo -e "${YELLOW}📋 What's Next?${NC}\n"
+
+            echo -e "${CYAN}1. ${GREEN}Monitor Deployment${NC}"
+            echo -e "   ${PURPLE}→${NC} View pipeline: ${CYAN}${repo_url}/-/pipelines${NC}"
+            echo -e "   ${PURPLE}→${NC} Wait 2-3 minutes for build to complete\n"
+
+            echo -e "${CYAN}2. ${GREEN}View Your Live App${NC}"
+            echo -e "   ${PURPLE}→${NC} Once deployed: ${CYAN}${repo_url}${NC}"
+            echo -e "   ${PURPLE}→${NC} Or check: ${CYAN}${repo_url}/-/pages${NC}\n"
+
+            echo -e "${CYAN}3. ${GREEN}Test Your Blog Scraper${NC}"
+            echo -e "   ${PURPLE}→${NC} Enter a GoDaddy blog URL (e.g., https://example.godaddysites.com)"
+            echo -e "   ${PURPLE}→${NC} Click 'Fetch Blog Posts'"
+            echo -e "   ${PURPLE}→${NC} View and export your scraped content\n"
+
+            echo -e "${CYAN}4. ${GREEN}Automatic Deployments${NC}"
+            echo -e "   ${PURPLE}→${NC} Every git push to main will auto-deploy"
+            echo -e "   ${PURPLE}→${NC} No manual steps needed!\n"
+
+            echo -e "${YELLOW}💡 Pro Tips:${NC}"
+            echo -e "${CYAN}• Check CI/CD tab if deployment fails${NC}"
+            echo -e "${CYAN}• Configure custom domain in Pages settings${NC}"
+            echo -e "${CYAN}• View deployment logs in pipeline${NC}\n"
+
+            echo -e "${GREEN}${PARTY} Deployment in progress! ${PARTY}${NC}\n"
         else
             echo -e "\n${RED}${CROSS} Failed to push to GitLab${NC}"
             echo -e "${YELLOW}Common issues:${NC}"
