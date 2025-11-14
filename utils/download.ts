@@ -23,13 +23,14 @@ function escapeCsvField(field: string | null | undefined): string {
  * Converts an array of BlogPost objects into a CSV-formatted string
  */
 export function convertToCsv(posts: BlogPost[]): string {
-  const header = ['title', 'content'];
+  const header = ['title', 'date', 'content'];
   const headerString = header.join(',');
 
   const rows = posts.map(post => {
     const title = escapeCsvField(post.title);
+    const date = escapeCsvField(post.date || '');
     const content = escapeCsvField(post.content);
-    return [title, content].join(',');
+    return [title, date, content].join(',');
   });
 
   return [headerString, ...rows].join('\n');

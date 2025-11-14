@@ -153,7 +153,8 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                             type: 'post',
                             data: {
                                 title: item.title,
-                                content: contentText
+                                content: contentText,
+                                date: item.date_modified
                             }
                         });
                         successCount++;
@@ -165,7 +166,8 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                                 type: 'post',
                                 data: {
                                     title: item.title,
-                                    content: fallbackContent || 'Content not available'
+                                    content: fallbackContent || 'Content not available',
+                                    date: item.date_modified
                                 }
                             });
                             successCount++;
@@ -188,7 +190,8 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
                             type: 'post',
                             data: {
                                 title: item.title,
-                                content: fallbackContent || 'Content not available'
+                                content: fallbackContent || 'Content not available',
+                                date: item.date_modified
                             }
                         });
                         successCount++;

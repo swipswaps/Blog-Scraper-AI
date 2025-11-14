@@ -93,6 +93,20 @@ const App: React.FC = () => {
                 return sortablePosts.sort((a, b) => a.content.length - b.content.length);
             case 'length-desc':
                 return sortablePosts.sort((a, b) => b.content.length - a.content.length);
+            case 'date-asc':
+                return sortablePosts.sort((a, b) => {
+                    if (!a.date && !b.date) return 0;
+                    if (!a.date) return 1; // Posts without dates go to the end
+                    if (!b.date) return -1;
+                    return new Date(a.date).getTime() - new Date(b.date).getTime();
+                });
+            case 'date-desc':
+                return sortablePosts.sort((a, b) => {
+                    if (!a.date && !b.date) return 0;
+                    if (!a.date) return 1; // Posts without dates go to the end
+                    if (!b.date) return -1;
+                    return new Date(b.date).getTime() - new Date(a.date).getTime();
+                });
             case 'default':
             default:
                 return posts;
@@ -232,6 +246,8 @@ const App: React.FC = () => {
                                         }}
                                     >
                                         <option value="default">Default Order</option>
+                                        <option value="date-desc">Date (Newest First)</option>
+                                        <option value="date-asc">Date (Oldest First)</option>
                                         <option value="title-asc">Title (A-Z)</option>
                                         <option value="title-desc">Title (Z-A)</option>
                                         <option value="length-asc">Length (Shortest)</option>

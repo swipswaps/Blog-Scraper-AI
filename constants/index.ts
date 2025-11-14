@@ -14,6 +14,8 @@ export const SORT_OPTIONS = {
   TITLE_DESC: 'title-desc',
   LENGTH_ASC: 'length-asc',
   LENGTH_DESC: 'length-desc',
+  DATE_ASC: 'date-asc',
+  DATE_DESC: 'date-desc',
 } as const;
 
 export const ERROR_MESSAGES = {

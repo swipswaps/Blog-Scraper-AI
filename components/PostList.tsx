@@ -24,6 +24,21 @@ const PostItem = memo<PostItemProps>(({ post, isOpen, onClick }) => {
     });
   }, [post.content]);
 
+  // Format date for display
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return '';
+    }
+  };
+
   return (
     <div className="border-b border-primary">
       <button
@@ -32,7 +47,14 @@ const PostItem = memo<PostItemProps>(({ post, isOpen, onClick }) => {
         aria-expanded={isOpen}
       >
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-text-primary pr-4">{post.title}</h3>
+          <div className="flex-1 pr-4">
+            <h3 className="text-lg font-semibold text-text-primary">{post.title}</h3>
+            {post.date && (
+              <p className="text-sm text-text-secondary/70 mt-1">
+                {formatDate(post.date)}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {isOpen && (
               <button
