@@ -20,6 +20,7 @@ interface JSONFeed {
     version: string;
     title: string;
     items: JSONFeedItem[];
+    next_url?: string; // Pagination support per JSON Feed spec
 }
 
 /**
@@ -72,10 +73,59 @@ export async function scrapeBlogPosts(baseUrl: string, options: ScrapeOptions): 
         }
 
         if (feedData && feedData.items && feedData.items.length > 0) {
-            // Process JSON feed
-            const itemsToProcess = limit ? feedData.items.slice(0, limit) : feedData.items;
+            // Collect all items from paginated feeds
+            let allItems: JSONFeedItem[] = [...feedData.items];
+            let currentNextUrl = feedData.next_url;
+            let pageCount = 1;
 
-            onProgress({ type: 'status', message: `Processing ${itemsToProcess.length} posts...` });
+            // Follow pagination links if no limit is set or we haven't reached the limit
+            while (currentNextUrl && (!limit || allItems.length < limit)) {
+                try {
+                    pageCount++;
+                    onProgress({
+                        type: 'status',
+                        message: `Following pagination (page ${pageCount})...`
+                    });
+
+                    const nextFeedResponse = await fetchWithProxy(currentNextUrl);
+                    const nextFeedData = JSON.parse(nextFeedResponse) as JSONFeed;
+
+                    if (nextFeedData.items && nextFeedData.items.length > 0) {
+                        allItems = [...allItems, ...nextFeedData.items];
+                        onProgress({
+                            type: 'status',
+                            message: `Found ${nextFeedData.items.length} more posts (total: ${allItems.length})`
+                        });
+                    }
+
+                    // Check for infinite loop protection
+                    if (currentNextUrl === nextFeedData.next_url) {
+                        console.warn('Pagination loop detected, stopping');
+                        break;
+                    }
+
+                    currentNextUrl = nextFeedData.next_url;
+
+                    // Small delay between pagination requests
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                } catch (paginationError: any) {
+                    console.warn('Failed to fetch paginated feed:', paginationError.message);
+                    onProgress({
+                        type: 'status',
+                        message: `Pagination ended (fetched ${pageCount} pages)`
+                    });
+                    break;
+                }
+            }
+
+            // Apply limit after collecting all paginated items
+            const itemsToProcess = limit ? allItems.slice(0, limit) : allItems;
+
+            const paginationInfo = pageCount > 1 ? ` from ${pageCount} pages` : '';
+            onProgress({
+                type: 'status',
+                message: `Processing ${itemsToProcess.length} posts${paginationInfo}...`
+            });
 
             let successCount = 0;
             let failCount = 0;
